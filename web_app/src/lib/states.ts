@@ -24,6 +24,7 @@ import {
   DEFAULT_BRUSH_SIZE,
   DEFAULT_NEGATIVE_PROMPT,
   MAX_BRUSH_SIZE,
+  MIN_BRUSH_SIZE,
   MODEL_TYPE_INPAINT,
   PAINT_BY_EXAMPLE,
 } from "./const"
@@ -981,10 +982,31 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       setImageSize: (width: number, height: number) => {
         // 根据图片尺寸调整 brushSize 的 scale
         set((state) => {
+          const prevWidth = state.imageWidth
+          const prevHeight = state.imageHeight
+          const oldScale = state.editorState.brushSizeScale
+          const newScale = Math.max(Math.min(width, height), 512) / 512
+          // 切换图片时（非首次加载）保持屏幕上可见的笔刷尺寸不变：
+          // visible = baseBrushSize * brushSizeScale，
+          // 因此换 scale 后需把 base 反向换算为 oldBase * oldScale / newScale
+          if (
+            prevWidth > 0 &&
+            prevHeight > 0 &&
+            oldScale > 0 &&
+            newScale !== oldScale
+          ) {
+            const visibleSize = state.editorState.baseBrushSize * oldScale
+            state.editorState.baseBrushSize = Math.min(
+              Math.max(
+                Math.round(visibleSize / newScale),
+                MIN_BRUSH_SIZE
+              ),
+              MAX_BRUSH_SIZE
+            )
+          }
           state.imageWidth = width
           state.imageHeight = height
-          state.editorState.brushSizeScale =
-            Math.max(Math.min(width, height), 512) / 512
+          state.editorState.brushSizeScale = newScale
         })
         get().resetExtender(width, height)
       },
